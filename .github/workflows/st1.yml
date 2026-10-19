@@ -1,0 +1,45 @@
+# 复制到你的仓库：.github/workflows/st1.yml
+# 触发：push tag v* 或手动。作用：构建 → 产出单文件 → 生成 SLSA provenance → 发布 release。
+name: st1
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write      # gh release create
+  id-token: write      # 领 Fulcio 证书（OIDC）
+  attestations: write  # 写入 attestation
+
+jobs:
+  build-and-attest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: bash build.sh
+        env:
+          VERSION: ${{ github.ref_name }}
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*.tar.gz"
+
+      # 发布到 release，平台才能拿到公开可下载的 URL 来复算 digest。
+      # 不发布也可以：attestation 仍可按 digest 查到，但平台没有文件可验。
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" dist/*.tar.gz dist/SHA256SUMS --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              dist/*.tar.gz dist/SHA256SUMS \
+              --title "${GITHUB_REF_NAME}" \
+              --notes "S1 provenance probe ${GITHUB_REF_NAME}"
+          fi

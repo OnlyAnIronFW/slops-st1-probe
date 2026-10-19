@@ -1,0 +1,36 @@
+# st1.yaml · 构建配方（S1 spike 提案）
+#
+# 注意：docs/20 与 ADR 0001–0015 没有冻结这个文件的 schema，
+# 本文件是 S1 为「作者可复制」而提出的最小可行格式，字段名可能变。
+# 文件名沿用旧代号 st1；产品已更名 Slops，是否改成 slops.yaml 待定。
+#
+# 平台用途（尚未实现）：展示构建配方（对应 v0.1 的 FR-SUB-03）、
+# 以及让审核人员知道「这个 digest 是怎么来的」。平台不执行本文件。
+
+schema: st1/v0
+
+app:
+  id: slops-s1-probe
+  name: S1 Provenance Probe
+
+build:
+  runtime: ubuntu-latest
+  command: bash build.sh
+  env:
+    # 可复现构建的关键：固定归档内时间戳
+    SOURCE_DATE_EPOCH: "0"
+  outputs:
+    - path: dist/slops-s1-probe-*.tar.gz
+      platform: windows          # docs/20 §2: android|windows|macos|ios；spike 产物不区分真实平台
+      kind: archive
+      reproducible: true         # 作者声明同一 commit 可重建出同一 digest
+
+attest:
+  action: actions/attest-build-provenance@v2
+  subject_path: dist/*.tar.gz    # 必须与实际发布文件字节一致
+
+release:
+  tag_pattern: "v*"
+  assets:
+    - dist/slops-s1-probe-*.tar.gz
+    - dist/SHA256SUMS
